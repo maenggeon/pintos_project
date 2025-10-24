@@ -147,7 +147,7 @@ int thread_get_load_avg (void);
 
 
 /* #1 */
-bool compare_thread_priority (const struct list_elem *, const struct list_elem *, void *aux);
+bool compare_thread_priority (const struct list_elem *, const struct list_elem *, void *);
 void check_preemption (void);
 
 
