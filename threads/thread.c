@@ -75,9 +75,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool compare_thread_priority (const struct list_elem *, const struct list_elem *, void*);
-void check_preemption (void);
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -217,6 +214,7 @@ thread_create (const char *name, int priority,
 
     /* Add to run queue. */
     thread_unblock (t);
+    check_preemption ();
 
     return tid;
 }
@@ -255,13 +253,10 @@ thread_unblock (struct thread *t)
     old_level = intr_disable ();
     ASSERT (t->status == THREAD_BLOCKED);
 
-    //list_push_back (&ready_list, &t->elem);
-    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
-
+    // list_push_back (&ready_list, &t->elem);
+    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, 0);
     t->status = THREAD_READY;
-    if (t != thread_current())
-        check_preemption();
-
+    
     intr_set_level (old_level);
 }
 
@@ -388,8 +383,8 @@ thread_yield (void)
 
     old_level = intr_disable ();
     if (cur != idle_thread)
-        //list_push_back (&ready_list, &cur->elem);
-        list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, NULL);
+        // list_push_back (&ready_list, &cur->elem);
+        list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, 0);
 
     cur->status = THREAD_READY;
     schedule ();
@@ -663,8 +658,8 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 
-
 /* #1 */
+
 bool
 compare_thread_priority (const struct list_elem *a,
                         const struct list_elem *b,
@@ -674,16 +669,12 @@ compare_thread_priority (const struct list_elem *a,
         > list_entry(b, struct thread, elem)->priority;
 }
 
-/* preemptive scheduling */
 void
 check_preemption (void)
 {
-    if (!list_empty(&ready_list) && // ready큐가 비어있지 않고
+    if (!list_empty(&ready_list) &&
         thread_current ()->priority <
         list_entry (list_front (&ready_list), struct thread, elem)->priority)
-        // 실행중인 스레드의 우선순위가
-        // ready큐의 스레드의 우선순위보다 작으면
-        // cpu를 양보한다.
 
         thread_yield();
 }
