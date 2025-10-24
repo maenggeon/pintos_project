@@ -75,7 +75,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool compare_thread_priority(struct list_elem *, struct list_elem *, void*);
+bool compare_thread_priority (const struct list_elem *, const struct list_elem *, void*);
+void check_preemption (void);
 
 
 /* Initializes the threading system by transforming the code
@@ -258,6 +259,9 @@ thread_unblock (struct thread *t)
     list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
 
     t->status = THREAD_READY;
+    if (t != thread_current())
+        check_preemption();
+
     intr_set_level (old_level);
 }
 
@@ -414,6 +418,7 @@ void
 thread_set_priority (int new_priority)
 {
     thread_current ()->priority = new_priority;
+    check_preemption ();
 }
 
 /* Returns the current thread's priority. */
@@ -659,10 +664,26 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 
-/* preemptive scheduling */
+/* #1 */
 bool
-compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux UNUSED)
+compare_thread_priority (const struct list_elem *a,
+                        const struct list_elem *b,
+                        void *aux UNUSED)
 {
     return list_entry(a, struct thread, elem)->priority
         > list_entry(b, struct thread, elem)->priority;
+}
+
+/* preemptive scheduling */
+void
+check_preemption (void)
+{
+    if (!list_empty(&ready_list) && // ready큐가 비어있지 않고
+        thread_current ()->priority <
+        list_entry (list_front (&ready_list), struct thread, elem)->priority)
+        // 실행중인 스레드의 우선순위가
+        // ready큐의 스레드의 우선순위보다 작으면
+        // cpu를 양보한다.
+
+        thread_yield();
 }
