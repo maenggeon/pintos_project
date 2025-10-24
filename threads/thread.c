@@ -75,7 +75,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-compare_thread_priority(struct list_elem *, struct list_elem *, void*);
+bool compare_thread_priority(struct list_elem *, struct list_elem *, void*);
 
 
 /* Initializes the threading system by transforming the code
@@ -660,6 +660,7 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 /* preemptive scheduling */
+bool
 compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux UNUSED)
 {
     return list_entry(a, struct thread, elem)->priority
