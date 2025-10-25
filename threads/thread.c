@@ -143,6 +143,9 @@ thread_tick (void)
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
         intr_yield_on_return ();
+
+    if (!list_empty (&ready_list))
+        thread_aging ();
 }
 
 /* Prints thread statistics. */
@@ -254,8 +257,9 @@ thread_unblock (struct thread *t)
     ASSERT (t->status == THREAD_BLOCKED);
 
     // list_push_back (&ready_list, &t->elem);
-    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, 0);
+    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
     t->status = THREAD_READY;
+    t->age = 0;
     
     intr_set_level (old_level);
 }
@@ -384,7 +388,7 @@ thread_yield (void)
     old_level = intr_disable ();
     if (cur != idle_thread)
         // list_push_back (&ready_list, &cur->elem);
-        list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, 0);
+        list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, NULL);
 
     cur->status = THREAD_READY;
     schedule ();
@@ -659,7 +663,6 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 /* #1 */
-
 bool
 compare_thread_priority (const struct list_elem *a,
                         const struct list_elem *b,
@@ -677,4 +680,29 @@ check_preemption (void)
         list_entry (list_front (&ready_list), struct thread, elem)->priority)
 
         thread_yield();
+}
+
+/* 2 */
+void
+thread_aging (void) {
+    struct list_elem *e;
+    
+    for (e = list_begin (&ready_list); e != list_end (&ready_list);)
+    {
+        struct thread *t = list_entry(e, struct thread, elem);
+        e = list_next (e);
+
+        if (t == idle_thread)
+            continue;
+
+        t -> age++;
+        if(t->age >= 20 && t->priority < PRI_DEFAULT)
+        {
+            t->priority++;
+            t->age = 0;
+
+            list_remove (&t->elem);
+            list_insert_ordered (&ready_list, &t->elem, compare_thread_priority, NULL);
+        }
+    }
 }
