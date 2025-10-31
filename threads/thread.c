@@ -24,11 +24,6 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-/* Multi-Level Feedback Queue */
-static struct list q0_list;
-static struct list q1_list;
-static struct list q2_list;
-
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -61,10 +56,6 @@ static long long user_ticks;   /* # of timer ticks in user programs. */
 
 /* Scheduling. */
 #define TIME_SLICE 4          /* # of timer ticks to give each thread. */
-#define Q0_TIME_SLICE 2
-#define Q1_TIME_SLICE 4
-#define Q2_TIME_SLICE 8
-
 static unsigned thread_ticks; /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
@@ -104,14 +95,7 @@ thread_init (void)
     ASSERT (intr_get_level () == INTR_OFF);
 
     lock_init (&tid_lock);
-
-    if(thread_mlfqs) {
-        list_init (&q0_list);
-        list_init (&q1_list);
-        list_init (&q2_list);
-    } else 
-        list_init (&ready_list);
-    
+    list_init (&ready_list);
     list_init (&all_list);
     list_init (&sleep_list);
 
@@ -157,32 +141,11 @@ thread_tick (void)
         kernel_ticks++;
 
     /* Enforce preemption. */
-    if (thread_mlfqs) {
-        switch (t->queue_level)
-        {
-        case 0:
-            if (++thread_ticks >= Q0_TIME_SLICE)
-                intr_yield_on_return();
-            break;
-        case 1:
-            if (++thread_ticks >= Q1_TIME_SLICE)
-                intr_yield_on_return();
-            
-            break;
-        case 2:
-            if (++thread_ticks >= Q2_TIME_SLICE)
-                intr_yield_on_return();            
-            break;        
-        }
-        if (!list_empty(&q0_list) || !list_empty(&q1_list) || !list_empty(&q2_list))
-            thread_aging_mlfqs ();
-    } else {
-        if (++thread_ticks >= TIME_SLICE)
-            intr_yield_on_return ();
+    if (++thread_ticks >= TIME_SLICE)
+        intr_yield_on_return ();
 
-        if (!list_empty (&ready_list))
-            thread_aging ();
-    }
+    if (!list_empty (&ready_list))
+        thread_aging ();
 }
 
 /* Prints thread statistics. */
@@ -294,21 +257,9 @@ thread_unblock (struct thread *t)
     ASSERT (t->status == THREAD_BLOCKED);
 
     // list_push_back (&ready_list, &t->elem);
-    // list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
-
+    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
     t->status = THREAD_READY;
     t->age = 0;
-    t->queue_level = 0;
-
-    if (thread_mlfqs) {
-        list_push_back(&q0_list, &t->elem);
-        struct thread *cur = thread_current();
-        if (cur != idle_thread &&
-            cur->queue_level > 0) {
-            intr_yield_on_return();
-        }
-    } else
-        list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
     
     intr_set_level (old_level);
 }
@@ -435,29 +386,10 @@ thread_yield (void)
     ASSERT (!intr_context ());
 
     old_level = intr_disable ();
-    if (cur != idle_thread) {
+    if (cur != idle_thread)
         // list_push_back (&ready_list, &cur->elem);
-        // list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, NULL);
-        
-        if (thread_mlfqs) {
-            // MLFQS
-            switch (cur->queue_level) {
-                case 0:
-                    list_push_back (&q1_list, &cur->elem);
-                    cur->queue_level = 1;
-                    break;
-                case 1:
-                    list_push_back (&q2_list, &cur->elem);
-                    cur->queue_level = 2;
-                    break;
-                case 2:
-                    list_push_back (&q2_list, &cur->elem);
-                    cur->queue_level = 2;
-                    break;
-            }
-        } else
-            list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, NULL);
-    }
+        list_insert_ordered(&ready_list, &cur->elem, compare_thread_priority, NULL);
+
     cur->status = THREAD_READY;
     schedule ();
     intr_set_level (old_level);
@@ -635,23 +567,10 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-    if (thread_mlfqs) {
-        if (!list_empty(&q0_list))
-            return list_entry(list_pop_front(&q0_list), struct thread, elem);
-
-        else if (!list_empty(&q1_list))
-            return list_entry(list_pop_front(&q1_list), struct thread, elem);
-
-        else if (!list_empty(&q2_list))
-            return list_entry(list_pop_front(&q2_list), struct thread, elem);
-        else
-            return idle_thread;
-    } else {
-        if (list_empty(&ready_list))
-            return idle_thread;
-        else
-            return list_entry(list_pop_front(&ready_list), struct thread, elem);
-    }
+    if (list_empty (&ready_list))
+        return idle_thread;
+    else
+        return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -784,47 +703,6 @@ thread_aging (void) {
 
             list_remove (&t->elem);
             list_insert_ordered (&ready_list, &t->elem, compare_thread_priority, NULL);
-        }
-    }
-}
-
-/* 3 */
-void
-thread_aging_mlfqs (void) {
-    struct list_elem *e;
-    
-    // q1
-    for (e = list_begin(&q1_list); e != list_end(&q1_list); )
-    {
-        struct thread *t = list_entry(e, struct thread, elem);
-        e = list_next(e);
-
-        if (t == idle_thread)
-            continue;
-
-        t->age++;
-        if (t->age >= 20) {
-            t->age = 0;
-            list_remove(&t->elem);
-            list_push_back(&q0_list, &t->elem);
-            t->queue_level = 0;
-        }
-    }
-
-    // q2
-    for (e = list_begin(&q2_list); e != list_end(&q2_list); ) {
-        struct thread *t = list_entry(e, struct thread, elem);
-        e = list_next(e);
-
-        if (t == idle_thread)
-            continue;
-
-        t->age++;
-        if (t->age >= 20) {
-            t->age = 0;
-            list_remove(&t->elem);
-            list_push_back(&q1_list, &t->elem);
-            t->queue_level = 1;
         }
     }
 }
