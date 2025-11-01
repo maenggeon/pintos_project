@@ -89,6 +89,7 @@ struct thread
     uint8_t *stack;            /* Saved stack pointer. */
     int priority;              /* Priority. */
     int age;                   /* Age. */
+    int queue_level;              /* Queue level. */
     struct list_elem allelem;  /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -155,5 +156,5 @@ void check_preemption (void);
 void thread_aging (void);
 
 /* 3 */
-
+void thread_aging_mlfqs (void);
 #endif /* threads/thread.h */
