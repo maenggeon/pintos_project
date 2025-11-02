@@ -89,7 +89,8 @@ struct thread
     uint8_t *stack;            /* Saved stack pointer. */
     int priority;              /* Priority. */
     int age;                   /* Age. */
-    int queue_level;              /* Queue level. */
+    int queue_level;           /* Queue level. */
+    int time_slice_used;       /* Ticks of CPU time consumed in the current queue level's time slice (MLFQS). */
     struct list_elem allelem;  /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -157,4 +158,5 @@ void thread_aging (void);
 
 /* 3 */
 void thread_aging_mlfqs (void);
+
 #endif /* threads/thread.h */
