@@ -664,18 +664,16 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void)
 {
-    if (thread_mlfqs) {
-        if (!list_empty (&q0_list))
-            return list_entry (list_pop_front (&q0_list), struct thread, elem);
-        if (!list_empty (&q1_list))
-            return list_entry (list_pop_front (&q1_list), struct thread, elem);
-        if (!list_empty (&q2_list))
-            return list_entry (list_pop_front (&q2_list), struct thread, elem);
-    } else {
-        if (!list_empty (&ready_list))
-            return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    }
-    return idle_thread;
+    if (!list_empty (&q0_list))
+        return list_entry (list_pop_front (&q0_list), struct thread, elem);
+    if (!list_empty (&q1_list))
+        return list_entry (list_pop_front (&q1_list), struct thread, elem);
+    if (!list_empty (&q2_list))
+        return list_entry (list_pop_front (&q2_list), struct thread, elem);
+    if (!list_empty (&ready_list))
+        return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    else
+        return idle_thread;
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -828,10 +826,8 @@ thread_aging_mlfqs (void) {
 
         if (t == idle_thread)
             continue;
-
         t -> age++;
-        if(t->age >= 20)
-        {
+        if(t->age >= 20) {
             t->age = 0;
         }
     }
