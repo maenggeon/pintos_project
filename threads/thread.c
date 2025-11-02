@@ -167,7 +167,6 @@ thread_tick (void)
             {
             case 0:
                 if (t->time_slice_used >= TIME_SLICE_Q0) {
-                    t->age = 0;
                     t->time_slice_used = 0;
                     t->queue_level = 1;
                     t->priority = PRI_DEFAULT;
@@ -176,7 +175,6 @@ thread_tick (void)
                 break;
             case 1:
                 if (t->time_slice_used >= TIME_SLICE_Q1) {
-                    t->age = 0;
                     t->time_slice_used = 0;
                     t->queue_level = 2;
                     t->priority = PRI_MIN;
@@ -185,7 +183,6 @@ thread_tick (void)
                 break;
             case 2:
                 if (t->time_slice_used >= TIME_SLICE_Q2) {
-                    t->age = 0;
                     t->time_slice_used = 0;
                     intr_yield_on_return ();
                 }
@@ -203,7 +200,6 @@ thread_tick (void)
     } else {
         if (++thread_ticks >= TIME_SLICE)
             intr_yield_on_return ();
-        check_preemption ();
     }
 }
 
@@ -276,7 +272,6 @@ thread_create (const char *name, int priority,
 
     /* Add to run queue. */
     thread_unblock (t);
-    
     if (thread_mlfqs) {
         if (thread_current ()->queue_level > 0)
             thread_yield();
@@ -284,7 +279,6 @@ thread_create (const char *name, int priority,
         if (t->priority > thread_current()->priority)
             thread_yield();
     }
-    
     return tid;
 }
 
@@ -324,8 +318,7 @@ thread_unblock (struct thread *t)
 
     t->age = 0;
     if (thread_mlfqs) {
-        switch (t->queue_level)
-        {
+        switch (t->queue_level) {
         case 0:
             list_push_back(&q0_list, &t->elem);
             break;
